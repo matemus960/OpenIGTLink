@@ -24,6 +24,7 @@
 #include "igtlServerSocket.h"
 #include "igtlStatusMessage.h"
 #include "igtlPositionMessage.h"
+#include "igtlClientSocket.h"
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
 #include "igtlPointMessage.h"
@@ -40,11 +41,12 @@ int ReceiveImage(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveStatus(igtl::Socket * socket, igtl::MessageHeader * header);
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
-int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header);
+int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header, igtl::ClientSocket * clientSocket);
 int ReceiveTrajectory(igtl::Socket * socket, igtl::MessageHeader::Pointer& header);
 int ReceiveString(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveBind(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveCapability(igtl::Socket * socket, igtl::MessageHeader * header);
+int SendPoint(igtl::Socket * socket, igtl::MessageHeader *header);
 #endif //OpenIGTLink_PROTOCOL_VERSION >= 2
 
 int main(int argc, char* argv[])
@@ -52,15 +54,18 @@ int main(int argc, char* argv[])
   //------------------------------------------------------------
   // Parse Arguments
 
-  if (argc != 2) // check number of arguments
-    {
-    // If not correct, print usage
-    std::cerr << "Usage: " << argv[0] << " <port>"    << std::endl;
-    std::cerr << "    <port>     : Port # (18944 in Slicer default)"   << std::endl;
-    exit(0);
-    }
+  //if (argc != 2) // check number of arguments
+  //  {
+  //  // If not correct, print usage
+  //  std::cerr << "Usage: " << argv[0] << " <port>"    << std::endl;
+  //  std::cerr << "    <port>     : Port # (18944 in Slicer default)"   << std::endl;
+  //  exit(0);
+  //  }
 
-  int    port     = atoi(argv[1]);
+  //int    port     = atoi(argv[1]);
+	int port = 1041;
+	int port_send = 1042;
+	char* hostname = "127.0.0.1";
 
   igtl::ServerSocket::Pointer serverSocket;
   serverSocket = igtl::ServerSocket::New();
@@ -73,6 +78,10 @@ int main(int argc, char* argv[])
     }
 
   igtl::Socket::Pointer socket;
+
+  igtl::ClientSocket::Pointer clientSocket;
+		clientSocket = igtl::ClientSocket::New();
+
   
   while (1)
     {
@@ -91,6 +100,14 @@ int main(int argc, char* argv[])
       igtl::TimeStamp::Pointer ts;
       ts = igtl::TimeStamp::New();
 
+	  //client connection
+	  r = clientSocket->ConnectToServer(hostname, port_send);
+
+		if (r != 0)
+		{
+		std::cerr << "Cannot connect to the server." << std::endl;
+		exit(0);
+		}
       //------------------------------------------------------------
       // loop
       for (int i = 0; i < 100; i ++)
@@ -144,7 +161,7 @@ int main(int argc, char* argv[])
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
         else if (strcmp(headerMsg->GetDeviceType(), "POINT") == 0)
           {
-          ReceivePoint(socket, headerMsg);
+          ReceivePoint(socket, headerMsg, clientSocket);
           }
         else if (strcmp(headerMsg->GetDeviceType(), "TRAJ") == 0)
           {
@@ -337,7 +354,7 @@ int ReceiveStatus(igtl::Socket * socket, igtl::MessageHeader * header)
 
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
-int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header)
+int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header, igtl::ClientSocket * clientSocket)
 {
 
   std::cerr << "Receiving POINT data type." << std::endl;
@@ -377,6 +394,18 @@ int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header)
       std::cerr << " Radius    : " << std::fixed << pointElement->GetRadius() << std::endl;
       std::cerr << " Owner     : " << pointElement->GetOwner() << std::endl;
       std::cerr << "================================" << std::endl;
+
+	  //SEND
+		igtl::PointMessage::Pointer pointMsgSend;
+		pointMsgSend = igtl::PointMessage::New();
+		pointMsgSend->SetDeviceName("PointSender");
+		pos[0] = pos[0]*-1;
+		pos[1] = pos[1]*-1;
+		pos[2] = pos[2]*-1;
+		pointElement->SetPosition(pos);
+		pointMsgSend->AddPointElement(pointElement);
+		pointMsgSend->Pack();
+		clientSocket->Send(pointMsgSend->GetPackPointer(), pointMsg->GetPackSize());
       }
     }
 
