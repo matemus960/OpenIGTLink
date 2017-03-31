@@ -28,20 +28,19 @@ int main(int argc, char* argv[])
   //------------------------------------------------------------
   // Parse Arguments
 
-  //if (argc != 3) // check number of arguments
-  //  {
-  //  // If not correct, print usage
-  //  std::cerr << "Usage: " << argv[0] << " <hostname> <port> <fps>"    << std::endl;
-  //  std::cerr << "    <hostname> : IP or host name"                    << std::endl;
-  //  std::cerr << "    <port>     : Port # (18944 in Slicer default)"   << std::endl;
-  //  exit(0);
-  //  }
+  if (argc != 3) // check number of arguments
+    {
+    // If not correct, print usage
+    std::cerr << "Usage: " << argv[0] << " <hostname> <port> <fps>"    << std::endl;
+    std::cerr << "    <hostname> : IP or host name"                    << std::endl;
+    std::cerr << "    <port>     : Port # (18944 in Slicer default)"   << std::endl;
+    exit(0);
+    }
 
-  //char*  hostname = argv[1];
-  //int    port     = atoi(argv[2]);
-	char* hostname = "127.0.0.1";
-	int port = 1041;
-	int port_receive = 1042;
+  char*  hostname = argv[1];
+  int    port     = atoi(argv[2]);
+	/*char* hostname = "127.0.0.1";
+	int port = 1041;*/
 
   //------------------------------------------------------------
   // Establish Connection
@@ -106,33 +105,13 @@ int main(int argc, char* argv[])
   //------------------------------------------------------------
   // Send
   socket->Send(pointMsg->GetPackPointer(), pointMsg->GetPackSize());
-  
-  
-  //------------------------------------------------------------
-  // Close the socket
-  socket->CloseSocket();
-
-
 
   //------------------------------------------------------------
   //server
-  igtl::ServerSocket::Pointer serverSocket;
-  serverSocket = igtl::ServerSocket::New();
-  r = serverSocket->CreateServer(port_receive);
-  
-  if (r < 0)
-    {
-    std::cerr << "Cannot create a server socket." << std::endl;
-    exit(0);
-    }
-
-  igtl::Socket::Pointer socket2;
-
+ 
   while(1)
   {
-	  socket2 = serverSocket->WaitForConnection(1000);
-
-	  if (socket2.IsNotNull()) // if client connected
+	  if (socket.IsNotNull()) // if client connected
       {
       // Create a message buffer to receive header
       igtl::MessageHeader::Pointer headerMsg;
@@ -143,10 +122,10 @@ int main(int argc, char* argv[])
 	  {
 		  headerMsg->InitPack();
 
-		  int r = socket2->Receive(headerMsg->GetPackPointer(), headerMsg->GetPackSize());
+		  int r = socket->Receive(headerMsg->GetPackPointer(), headerMsg->GetPackSize());
         if (r == 0)
           {
-          socket2->CloseSocket();
+          socket->CloseSocket();
           }
         if (r != headerMsg->GetPackSize())
           {
@@ -156,13 +135,15 @@ int main(int argc, char* argv[])
 
 		if (strcmp(headerMsg->GetDeviceType(), "POINT") == 0)
           {
-          ReceivePoint(socket2, headerMsg);
+          ReceivePoint(socket, headerMsg);
           }
 
 	  }
 	  }
   }
 
+
+  socket->CloseSocket();
 
 
 }

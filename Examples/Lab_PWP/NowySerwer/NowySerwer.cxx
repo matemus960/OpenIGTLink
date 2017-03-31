@@ -41,12 +41,11 @@ int ReceiveImage(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveStatus(igtl::Socket * socket, igtl::MessageHeader * header);
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
-int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header, igtl::ClientSocket * clientSocket);
+int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveTrajectory(igtl::Socket * socket, igtl::MessageHeader::Pointer& header);
 int ReceiveString(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveBind(igtl::Socket * socket, igtl::MessageHeader * header);
 int ReceiveCapability(igtl::Socket * socket, igtl::MessageHeader * header);
-int SendPoint(igtl::Socket * socket, igtl::MessageHeader *header);
 #endif //OpenIGTLink_PROTOCOL_VERSION >= 2
 
 int main(int argc, char* argv[])
@@ -54,18 +53,16 @@ int main(int argc, char* argv[])
   //------------------------------------------------------------
   // Parse Arguments
 
-  //if (argc != 2) // check number of arguments
-  //  {
-  //  // If not correct, print usage
-  //  std::cerr << "Usage: " << argv[0] << " <port>"    << std::endl;
-  //  std::cerr << "    <port>     : Port # (18944 in Slicer default)"   << std::endl;
-  //  exit(0);
-  //  }
+  if (argc != 2) // check number of arguments
+    {
+    // If not correct, print usage
+    std::cerr << "Usage: " << argv[0] << " <port>"    << std::endl;
+    std::cerr << "    <port>     : Port # (18944 in Slicer default)"   << std::endl;
+    exit(0);
+    }
 
-  //int    port     = atoi(argv[1]);
-	int port = 1041;
-	int port_send = 1042;
-	char* hostname = "127.0.0.1";
+  int    port     = atoi(argv[1]);
+	//int port = 1041;
 
   igtl::ServerSocket::Pointer serverSocket;
   serverSocket = igtl::ServerSocket::New();
@@ -78,10 +75,6 @@ int main(int argc, char* argv[])
     }
 
   igtl::Socket::Pointer socket;
-
-  igtl::ClientSocket::Pointer clientSocket;
-		clientSocket = igtl::ClientSocket::New();
-
   
   while (1)
     {
@@ -100,14 +93,7 @@ int main(int argc, char* argv[])
       igtl::TimeStamp::Pointer ts;
       ts = igtl::TimeStamp::New();
 
-	  //client connection
-	  r = clientSocket->ConnectToServer(hostname, port_send);
-
-		if (r != 0)
-		{
-		std::cerr << "Cannot connect to the server." << std::endl;
-		exit(0);
-		}
+	  
       //------------------------------------------------------------
       // loop
       for (int i = 0; i < 100; i ++)
@@ -161,7 +147,7 @@ int main(int argc, char* argv[])
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
         else if (strcmp(headerMsg->GetDeviceType(), "POINT") == 0)
           {
-          ReceivePoint(socket, headerMsg, clientSocket);
+          ReceivePoint(socket, headerMsg);
           }
         else if (strcmp(headerMsg->GetDeviceType(), "TRAJ") == 0)
           {
@@ -354,7 +340,7 @@ int ReceiveStatus(igtl::Socket * socket, igtl::MessageHeader * header)
 
 
 #if OpenIGTLink_PROTOCOL_VERSION >= 2
-int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header, igtl::ClientSocket * clientSocket)
+int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header)
 {
 
   std::cerr << "Receiving POINT data type." << std::endl;
@@ -399,13 +385,10 @@ int ReceivePoint(igtl::Socket * socket, igtl::MessageHeader * header, igtl::Clie
 		igtl::PointMessage::Pointer pointMsgSend;
 		pointMsgSend = igtl::PointMessage::New();
 		pointMsgSend->SetDeviceName("PointSender");
-		pos[0] = pos[0]*-1;
-		pos[1] = pos[1]*-1;
-		pos[2] = pos[2]*-1;
-		pointElement->SetPosition(pos);
+		pointElement->SetPosition(pos[0] * -1, pos[1] * -1, pos[2] * -1);
 		pointMsgSend->AddPointElement(pointElement);
 		pointMsgSend->Pack();
-		clientSocket->Send(pointMsgSend->GetPackPointer(), pointMsg->GetPackSize());
+		socket->Send(pointMsgSend->GetPackPointer(), pointMsgSend->GetPackSize());
       }
     }
 
@@ -546,33 +529,32 @@ int ReceiveBind(igtl::Socket * socket, igtl::MessageHeader * header)
 
 int ReceiveCapability(igtl::Socket * socket, igtl::MessageHeader * header)
 {
-  
-  std::cerr << "Receiving CAPABILITY data type." << std::endl;
 
-  // Create a message buffer to receive transform data
-  igtl::CapabilityMessage::Pointer capabilMsg;
-  capabilMsg = igtl::CapabilityMessage::New();
-  capabilMsg->SetMessageHeader(header);
-  capabilMsg->AllocatePack();
+	std::cerr << "Receiving CAPABILITY data type." << std::endl;
 
-  // Receive transform data from the socket
-  socket->Receive(capabilMsg->GetPackBodyPointer(), capabilMsg->GetPackBodySize());
+	// Create a message buffer to receive transform data
+	igtl::CapabilityMessage::Pointer capabilMsg;
+	capabilMsg = igtl::CapabilityMessage::New();
+	capabilMsg->SetMessageHeader(header);
+	capabilMsg->AllocatePack();
 
-  // Deserialize the transform data
-  // If you want to skip CRC check, call Unpack() without argument.
-  int c = capabilMsg->Unpack(1);
-  
-  if (c & igtl::MessageHeader::UNPACK_BODY) // if CRC check is OK
-    {
-    int nTypes = capabilMsg->GetNumberOfTypes();
-    for (int i = 0; i < nTypes; i ++)
-      {
-      std::cerr << "Typename #" << i << ": " << capabilMsg->GetType(i) << std::endl;
-      }
-    }
+	// Receive transform data from the socket
+	socket->Receive(capabilMsg->GetPackBodyPointer(), capabilMsg->GetPackBodySize());
 
-  return 1;
-  
+	// Deserialize the transform data
+	// If you want to skip CRC check, call Unpack() without argument.
+	int c = capabilMsg->Unpack(1);
+
+	if (c & igtl::MessageHeader::UNPACK_BODY) // if CRC check is OK
+	{
+		int nTypes = capabilMsg->GetNumberOfTypes();
+		for (int i = 0; i < nTypes; i++)
+		{
+			std::cerr << "Typename #" << i << ": " << capabilMsg->GetType(i) << std::endl;
+		}
+	}
+
+	return 1;
 }
 
 
