@@ -60,13 +60,13 @@ int main(int argc, char* argv[])
 
   igtl::PositionMessage::Pointer positionMsg;
   positionMsg = igtl::PositionMessage::New();
-  positionMsg->SetDeviceName("Tracker");
   positionMsg->SetPackType(igtl::PositionMessage::ALL); // default
 
   //------------------------------------------------------------
   // loop
   while (1)
     {
+	  positionMsg->SetDeviceName("Tracker");
     float position[3];
     float quaternion[4];
 
